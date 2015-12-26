@@ -1,0 +1,160 @@
+---
+title: "Coursera Data Science Specialisation Capstone Milestone Report"
+author: "Junhua Liu"
+date: "18 December 2015"
+output: html_document
+---
+
+# Introduction
+
+This is a milestone report for Coursera Data Science Specialisation Capstone project. The goal of the capstone project is to use Natual Language Processing techniques to build a predictive models and design a shiny application with the capabilities to predict next word. The dataset is provided by SwiftKey.
+
+# Data Summary
+
+The dataset includes 3 sources of textual data namely blogs, twitters and news. Each type has our languages including Russian, Finnish, German and English. The scope of this proect will only include the English version of all three types. Files used are as follows:
+
+- en_US.blogs.txt
+- en_US.twitter.txt
+- en_US.news.txt
+
+The following table summarizes the characteristics of the three datasets, including file size and number of lines.
+
+```{r, echo=FALSE, warning=FALSE, results='hide', include=FALSE, cache=FALSE}
+invisible(library(gdata))
+invisible(library(stringi))
+invisible(library(stringr))
+invisible(library(NLP))
+invisible(library(tm))
+invisible(library(ggplot2))
+invisible(library(quanteda))
+invisible(library(slam))
+setwd("~/Playground/coursera_capstone/")
+usblogs = readLines("data/final/en_US/en_US.blogs.txt")
+ustwitter = readLines("data/final/en_US/en_US.twitter.txt")
+usnews = readLines("data/final/en_US/en_US.news.txt")
+ustwitter = gsub("\032", "", ustwitter, ignore.case = F, perl = T)
+
+# Line counts
+blogs.len = length(usblogs)
+twitter.len = length(ustwitter)
+news.len = length(usnews)
+```
+
+Dataset   | File size (bytes) |   # Lines   
+----------|----------|----------
+Blogs     |`r as.character(file.info("data/final/en_US/en_US.blogs.txt")$size) `           |   `r as.character(blogs.len)`     
+twitter |  `r as.character(file.info("data/final/en_US/en_US.twitter.txt")$size) `  | `r as.character(twitter.len)`     
+news | `r as.character(file.info("data/final/en_US/en_US.news.txt")$size) `   | `r as.character(news.len)`     
+
+
+# Preprocessing
+
+In the interest of efficiency, we sample 1% of each dataset to explore for this milestone report. After sampling, the data goes through a couple of transformations, including changing letters to lower case, removing punctuations/numbers and removing stop words. After processing, the summary of the datasets are in the following table. These transformations are done by turning the vectors of data into class Corpus and using the 'tm_map' function under 'tm' package.
+
+```{r, echo=FALSE, warning=FALSE, results='hide', include=FALSE, cache=FALSE}
+usblogs = sample(usblogs, length(usblogs), size=floor(length(usblogs)/100.0))
+ustwitter = sample(ustwitter, length(ustwitter), size=floor(length(ustwitter)/100.0))
+usnews = sample(usnews, length(usnews), size=floor(length(usnews)/100.0))
+
+corpus.blogs=VCorpus(VectorSource(usblogs))
+corpus.twitter=VCorpus(VectorSource(ustwitter))
+corpus.news=VCorpus(VectorSource(usnews))
+
+# Avg length of word
+blogs.avg_entry_size = mean(stri_length(corpus.blogs))
+blogs.max_entry_size = max(stri_length(corpus.blogs))
+blogs.min_entry_size = min(stri_length(corpus.blogs))
+
+twitter.avg_entry_size = mean(stri_length(corpus.twitter))
+twitter.max_entry_size = max(stri_length(corpus.twitter))
+twitter.min_entry_size = min(stri_length(corpus.twitter))
+
+news.avg_entry_size = mean(stri_length(corpus.news))
+news.max_entry_size = max(stri_length(corpus.news))
+news.min_entry_size = min(stri_length(corpus.news))
+```
+
+Dataset   |   Minimal Entry Size    |   Avg Entry Size    |   Maximal Entry Size
+----------|----------|----------|----------
+Blogs     |   `r as.character(blogs.min_entry_size)`   |   `r as.character(round(blogs.avg_entry_size,digits=2)) `   |   `r as.character(blogs.max_entry_size)`
+twitter   |   `r as.character(twitter.min_entry_size)`   |   `r as.character(round(twitter.avg_entry_size,2)) `   |   `r as.character(twitter.max_entry_size)`
+news      |   `r as.character(news.min_entry_size)`   |   `r as.character(round(news.avg_entry_size,2)) `   |   `r as.character(news.max_entry_size)`
+
+# Exploratory Analysis
+
+The frequencies words from blogs, twitter and news datasets are summarised into three bar charts, plotted below. Only top 30 most frequent words are shown for each of the dataset.
+
+```{r, echo=FALSE, warning=FALSE, results='hide', include=FALSE, cache=FALSE}
+
+processData = function(vc) {
+  vc=tm_map(vc,content_transformer(tolower))
+  vc=tm_map(vc,stripWhitespace)
+  vc=tm_map(vc,removeWords, stopwords("english"))
+  vc=tm_map(vc,removeNumbers)
+  vc=tm_map(vc,removePunctuation)
+  vc=tm_map(vc,stemDocument)
+  
+  tdm = TermDocumentMatrix(vc)
+  freq = sort(row_sums(tdm, na.rm=TRUE), decreasing = TRUE)
+  word=names(freq)
+  data.frame(word=word,freq=freq)  
+}
+
+# Corpus
+df.blogs = processData(corpus.blogs)
+df.twitter = processData(corpus.twitter)
+df.news = processData(corpus.news)
+
+df.blog.top30 = df.blogs[1:30,]
+df.twitter.top30 = df.twitter[1:30,]
+df.news.top30 = df.news[1:30,]
+
+```
+
+```{r echo=FALSE}
+end_point = 0.5 + nrow(df.blog.top30) + nrow(df.blog.top30)-1 
+barplot(df.blog.top30$freq,
+        main="Top 30 words from blogs", 
+        ylab="Frequency", 
+        xlab="Words",
+        ylim = c(0, max(df.blog.top30$freq)),
+        space = 1
+        )
+text(seq(1.5,end_point,by=2), par("usr")[3]-0.25, 
+     srt = 60, adj= 1, xpd = TRUE,
+     labels = paste(rownames(df.blog.top30)), cex=0.65)
+```
+
+```{r echo=FALSE}
+end_point = 0.5 + nrow(df.twitter.top30) + nrow(df.twitter.top30)-1 
+barplot(df.twitter.top30$freq,
+        main="Top 30 words from Twitter", 
+        ylab="Frequency", 
+        xlab="Words",
+        ylim = c(0, max(df.twitter.top30$freq)),
+        space = 1
+        )
+text(seq(1.5,end_point,by=2), par("usr")[3]-0.25, 
+     srt = 60, adj= 1, xpd = TRUE,
+     labels = paste(rownames(df.twitter.top30)), cex=0.65)
+```
+
+```{r echo=FALSE}
+end_point = 0.5 + nrow(df.news.top30) + nrow(df.blog.top30)-1 
+barplot(df.news.top30$freq,
+        main="Top 30 words from blogs", 
+        ylab="Frequency", 
+        xlab="Words",
+        ylim = c(0, max(df.news.top30$freq)),
+        space = 1
+        )
+text(seq(1.5,end_point,by=2), par("usr")[3]-0.25, 
+     srt = 60, adj= 1, xpd = TRUE,
+     labels = paste(rownames(df.news.top30)), cex=0.65)
+```
+
+# Plan
+This concludes the milestone report. Moving forward, further work will include exploring the frequencies of multiple-word phrases using n-gram analysis. Subsequently, we will train a predictive model with multiple n-gram models (from 1-gram to 4-gram) and develop a text predictive app for the final submission. The prediction will also list out a couple of most likely **next word** which are ranked by probabilities. A copy of the functional app will be hosted as a Shiny app to predict the next word with up to 4 words input. 
+
+# Final note
+For readability purpose, this report does not hide all the R code that generates above data and plots. To review, please visit the source code at Github (https://github.com/junhua/DS_Capstone).
